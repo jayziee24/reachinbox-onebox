@@ -1,13 +1,17 @@
-// src/services/imap.service.ts
+// This is the complete and final code for this file.
 import dotenv from "dotenv";
-import Imap from "node-imap";
-import { inspect } from "util";
+import { simpleParser } from "mailparser";
+import Imap, { ImapMessage } from "node-imap";
+import { Readable } from "stream";
+import { EmailDocument } from "../types/email.types";
+import { elasticService } from "./elastic.service";
 
 dotenv.config();
 
 class ImapService {
   private imap: Imap;
-  private isSyncing = false; // A lock to prevent multiple fetches at once
+  private isSyncing = false;
+  private isInitialSyncComplete = false;
 
   constructor() {
     this.imap = new Imap({
@@ -30,8 +34,9 @@ class ImapService {
 
     this.imap.on("mail", () => {
       console.log("📬 New mail event received!");
-      // We call the initialSync function again, but it will only fetch UNSEEN.
-      this.initialSync();
+      if (this.isInitialSyncComplete) {
+        this.syncEmails();
+      }
     });
 
     this.imap.once("error", (err: Error) =>
@@ -47,62 +52,99 @@ class ImapService {
         return;
       }
       console.log("📬 Inbox opened successfully.");
-      this.initialSync(); // Perform the first sync
+      this.syncEmails();
     });
   }
 
-  private initialSync(): void {
-    // If a sync is already in progress, don't start another one.
-    if (this.isSyncing) {
-      console.log("Sync already in progress, skipping new mail check for now.");
-      return;
-    }
+  // Replace the entire syncEmails function
+  private syncEmails(): void {
+    if (this.isSyncing) return;
     this.isSyncing = true;
-    console.log("Checking for unseen emails...");
 
-    const fetchOptions = {
-      bodies: ["HEADER.FIELDS (FROM TO SUBJECT DATE)"],
-      struct: true,
-    };
+    let searchCriteria: any[];
+    if (!this.isInitialSyncComplete) {
+      console.log("🚀 Performing initial sync (last 24 hours)...");
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
 
-    // We only search for UNSEEN emails now. On first run, this gets all recent unread.
-    // On subsequent runs (triggered by 'mail' event), it gets only the new ones.
-    this.imap.search(["UNSEEN"], (err, uids) => {
-      if (err) {
-        console.error("IMAP search error:", err);
+      // THIS IS THE FIX: Pass the Date object directly
+      searchCriteria = [["SINCE", yesterday]];
+    } else {
+      console.log("👂 Checking for new unseen emails...");
+      searchCriteria = ["UNSEEN"];
+    }
+
+    const fetchOptions: Imap.FetchOptions = { bodies: "", markSeen: false };
+
+    this.imap.search(searchCriteria, (err, uids) => {
+      if (err || uids.length === 0) {
+        if (err) console.error("IMAP search error:", err);
+        else console.log("No emails to fetch for the given criteria.");
         this.isSyncing = false;
+        if (!this.isInitialSyncComplete) {
+          this.isInitialSyncComplete = true;
+          console.log("✅ Initial sync complete. Now listening for new mail.");
+        }
         return;
       }
 
-      if (uids.length === 0) {
-        console.log("No new emails to fetch.");
-        this.isSyncing = false;
-        return;
-      }
-
-      console.log(`Found ${uids.length} new emails to fetch.`);
+      console.log(`Found ${uids.length} emails to fetch.`);
       const f = this.imap.fetch(uids, fetchOptions);
 
-      f.on("message", (msg, seqno) => {
-        console.log("--- Processing message #%d ---", seqno);
-        msg.on("body", (stream, info) => {
-          let buffer = "";
-          stream.on("data", (chunk) => {
-            buffer += chunk.toString("utf8");
-          });
-          stream.once("end", () => {
-            console.log(`#${seqno} Header:`, inspect(Imap.parseHeader(buffer)));
+      f.on("message", (msg: ImapMessage, seqno: number) => {
+        let messageUid: number;
+        msg.once("attributes", (attrs) => {
+          messageUid = attrs.uid;
+        });
+
+        (msg as any).on("body", (stream: Readable) => {
+          simpleParser(stream, async (err, parsed) => {
+            if (err) {
+              console.error("Error parsing email:", err);
+              return;
+            }
+            const emailDocument: EmailDocument = {
+              id: parsed.messageId || new Date().getTime().toString(),
+              accountId: process.env.IMAP_USER || "",
+              subject: parsed.subject || "",
+              from: parsed.from?.text || "",
+              to: Array.isArray(parsed.to)
+                ? parsed.to.map((t) => t.text)
+                : [parsed.to?.text || ""],
+              date: parsed.date || new Date(),
+              body: parsed.text || "",
+              aiCategory: "Uncategorized",
+              indexedAt: new Date(),
+            };
+
+            await elasticService.indexEmail(emailDocument);
+
+            if (messageUid) {
+              this.imap.addFlags(messageUid, "\\Seen", (flagErr) => {
+                if (flagErr) {
+                  console.error(
+                    `Error marking email UID ${messageUid} as seen:`,
+                    flagErr
+                  );
+                }
+              });
+            }
           });
         });
       });
 
       f.once("error", (err) => {
         console.log("Fetch error: " + err);
+        this.isSyncing = false;
       });
 
       f.once("end", () => {
         console.log("✅ Done fetching messages!");
-        this.isSyncing = false; // Release the lock
+        this.isSyncing = false;
+        if (!this.isInitialSyncComplete) {
+          this.isInitialSyncComplete = true;
+          console.log("✅ Initial sync complete. Now listening for new mail.");
+        }
       });
     });
   }
