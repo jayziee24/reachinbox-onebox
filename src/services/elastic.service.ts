@@ -59,6 +59,42 @@ class ElasticService {
       console.error(`Error indexing email ${email.id}:`, error);
     }
   }
+  public async searchEmails(query: string, accountId: string) {
+    try {
+      const esQuery = {
+        bool: {
+          must: [
+            {
+              multi_match: {
+                query,
+                fields: ["subject", "body", "from"],
+              },
+            },
+          ],
+          // --- THIS IS THE FIX ---
+          // We are changing the filter from "term" to "match"
+          filter: [
+            {
+              match: {
+                // Use "match" for more robust text field filtering
+                accountId: accountId,
+              },
+            },
+          ],
+        },
+      };
+
+      const response = await this.client.search({
+        index: this.indexName,
+        query: esQuery,
+      });
+
+      return response.hits.hits.map((hit: any) => hit._source);
+    } catch (error) {
+      console.error("Elasticsearch search error:", error);
+      return [];
+    }
+  }
 }
 
 export const elasticService = new ElasticService();
