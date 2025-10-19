@@ -1,6 +1,7 @@
 // src/services/elastic.service.ts
 import { Client } from "@elastic/elasticsearch";
 import { EmailDocument } from "../types/email.types";
+import { EmailCategory } from "./ai.service";
 
 class ElasticService {
   private client: Client;
@@ -11,7 +12,23 @@ class ElasticService {
       node: process.env.ELASTICSEARCH_HOST || "http://localhost:9200",
     });
   }
-
+  public async updateEmailCategory(
+    id: string,
+    category: EmailCategory
+  ): Promise<void> {
+    try {
+      await this.client.update({
+        index: this.indexName,
+        id: id,
+        doc: {
+          aiCategory: category,
+        },
+      });
+      console.log(`✅ Updated category for email ${id} to ${category}.`);
+    } catch (error) {
+      console.error(`Error updating email category for ${id}:`, error);
+    }
+  }
   public async connect(): Promise<void> {
     try {
       await this.client.ping();

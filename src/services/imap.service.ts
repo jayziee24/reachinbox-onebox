@@ -4,6 +4,7 @@ import { simpleParser } from "mailparser";
 import Imap, { ImapMessage } from "node-imap";
 import { Readable } from "stream";
 import { EmailDocument } from "../types/email.types";
+import { aiService } from "./ai.service";
 import { elasticService } from "./elastic.service";
 
 dotenv.config();
@@ -103,6 +104,7 @@ class ImapService {
               console.error("Error parsing email:", err);
               return;
             }
+
             const emailDocument: EmailDocument = {
               id: parsed.messageId || new Date().getTime().toString(),
               accountId: process.env.IMAP_USER || "",
@@ -113,11 +115,26 @@ class ImapService {
                 : [parsed.to?.text || ""],
               date: parsed.date || new Date(),
               body: parsed.text || "",
-              aiCategory: "Uncategorized",
+              aiCategory: "Uncategorized", // Start with the default
               indexedAt: new Date(),
             };
 
+            // Step 1: Index the email immediately
             await elasticService.indexEmail(emailDocument);
+
+            // --- NEW INTEGRATION LOGIC ---
+            // Step 2: Call the AI to get the category
+            const category = await aiService.categorizeEmail(
+              emailDocument.subject,
+              emailDocument.body
+            );
+
+            // Step 3: Update the document in Elasticsearch with the new category
+            await elasticService.updateEmailCategory(
+              emailDocument.id,
+              category
+            );
+            // --- END OF NEW LOGIC ---
 
             if (messageUid) {
               this.imap.addFlags(messageUid, "\\Seen", (flagErr) => {
