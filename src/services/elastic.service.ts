@@ -53,6 +53,7 @@ class ElasticService {
             body: { type: "text" },
             from: { type: "text" },
             accountId: { type: "keyword" },
+            folder: { type: "keyword" },
             aiCategory: { type: "keyword" },
             date: { type: "date" },
           },
@@ -76,9 +77,10 @@ class ElasticService {
       console.error(`Error indexing email ${email.id}:`, error);
     }
   }
-  public async searchEmails(query: string, accountId: string) {
+  public async searchEmails(query: string, accountId: string, folder?: string) {
     try {
-      const esQuery = {
+      // 1. Change the function signature to accept 'folder'
+      const esQuery: any = {
         bool: {
           must: [
             {
@@ -88,12 +90,9 @@ class ElasticService {
               },
             },
           ],
-          // --- THIS IS THE FIX ---
-          // We are changing the filter from "term" to "match"
           filter: [
             {
               match: {
-                // Use "match" for more robust text field filtering
                 accountId: accountId,
               },
             },
@@ -101,32 +100,47 @@ class ElasticService {
         },
       };
 
+      // 2. If a folder is provided, add it to the filter array
+      if (folder) {
+        esQuery.bool.filter.push({ term: { folder: folder } });
+      }
+
       const response = await this.client.search({
         index: this.indexName,
-        query: esQuery,
+        query: esQuery, // 3. The query object is now updated
       });
 
       return response.hits.hits.map((hit: any) => hit._source);
     } catch (error) {
-      console.error("Elasticsearch search error:", error);
+      console.error({ err: error }, "Elasticsearch search error:");
       return [];
     }
   }
-  public async getAllEmails(accountId: string) {
+  public async getAllEmails(accountId: string, folder?: string) {
     try {
+      // 1. Build a flexible query object
+      const query: any = {
+        bool: {
+          filter: [
+            { match: { accountId: accountId } }, // The accountId filter is always active
+          ],
+        },
+      };
+
+      // 2. If a folder is provided, add it to the filter
+      if (folder) {
+        query.bool.filter.push({ term: { folder: folder } });
+      }
+
       const response = await this.client.search({
         index: this.indexName,
-        // Sort by date, newest first
         sort: [{ date: { order: "desc" } }],
-        query: {
-          match: {
-            accountId: accountId,
-          },
-        },
+        query: query, // 3. Use the new flexible query
       });
+
       return response.hits.hits.map((hit: any) => hit._source);
     } catch (error) {
-      console.error("Elasticsearch getAllEmails error:", error);
+      console.error({ err: error }, "Elasticsearch getAllEmails error:");
       return [];
     }
   }

@@ -1,6 +1,7 @@
 export interface EmailDocument {
   id: string;
   accountId: string;
+  folder: string;
   subject: string;
   from: string;
   to: string[];

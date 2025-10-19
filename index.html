@@ -127,6 +127,9 @@
         <h1>Onebox</h1>
       </header>
       <div class="controls">
+        <div class="folder-filters">
+          <button class="folder-btn active" data-folder="INBOX">INBOX</button>
+        </div>
         <input type="search" id="search-input" placeholder="Search emails..." />
         <button id="search-button">Search</button>
       </div>
@@ -137,6 +140,8 @@
       const emailList = document.getElementById("email-list");
       const searchInput = document.getElementById("search-input");
       const searchButton = document.getElementById("search-button");
+      const folderFilters = document.querySelector(".folder-filters");
+      let activeFolder = "INBOX";
 
       // Function to render the list of emails
       function renderEmails(emails) {
@@ -166,7 +171,9 @@
       // --- THIS IS THE MISSING CODE ---
       async function loadInitialEmails() {
         try {
-          const response = await fetch("/api/emails");
+          const response = await fetch(
+            `/api/emails?folder=${encodeURIComponent(activeFolder)}`
+          );
           const emails = await response.json();
           renderEmails(emails);
         } catch (error) {
@@ -176,9 +183,13 @@
         }
       }
 
-      // --- THIS IS THE MISSING CODE ---
       async function performSearch() {
         const query = searchInput.value.trim();
+        const url = query
+          ? `/api/emails/search?q=${encodeURIComponent(
+              query
+            )}&folder=${encodeURIComponent(activeFolder)}`
+          : `/api/emails?folder=${encodeURIComponent(activeFolder)}`;
         if (!query) {
           loadInitialEmails(); // If search is empty, load all emails
           return;
@@ -225,7 +236,18 @@
           }
         }
       }
+      folderFilters.addEventListener("click", (event) => {
+        if (event.target.classList.contains("folder-btn")) {
+          // Update active button styles
+          document
+            .querySelector(".folder-btn.active")
+            .classList.remove("active");
+          event.target.classList.add("active");
 
+          activeFolder = event.target.dataset.folder;
+          performSearch(); // Re-run the search/fetch with the new folder
+        }
+      });
       // Event Listeners
       searchButton.addEventListener("click", performSearch);
       searchInput.addEventListener("keydown", (event) => {
@@ -242,6 +264,24 @@
         color: #333;
         margin: 0;
         padding: 20px;
+      }
+      .folder-filters {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-right: 15px;
+      }
+      .folder-btn {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        background: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .folder-btn.active {
+        background-color: #007bff;
+        color: white;
+        border-color: #007bff;
       }
       .container {
         max-width: 900px;
