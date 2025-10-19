@@ -6,7 +6,7 @@ import { Readable } from "stream";
 import { EmailDocument } from "../types/email.types";
 import { aiService } from "./ai.service";
 import { elasticService } from "./elastic.service";
-
+import { notificationService } from "./notification.service";
 dotenv.config();
 
 class ImapService {
@@ -100,11 +100,13 @@ class ImapService {
 
         (msg as any).on("body", (stream: Readable) => {
           simpleParser(stream, async (err, parsed) => {
+            // Step 1: Handle parsing errors first.
             if (err) {
               console.error("Error parsing email:", err);
-              return;
+              return; // Stop execution if parsing fails
             }
 
+            // Step 2: Now that we know 'parsed' is valid, create the document.
             const emailDocument: EmailDocument = {
               id: parsed.messageId || new Date().getTime().toString(),
               accountId: process.env.IMAP_USER || "",
@@ -115,27 +117,35 @@ class ImapService {
                 : [parsed.to?.text || ""],
               date: parsed.date || new Date(),
               body: parsed.text || "",
-              aiCategory: "Uncategorized", // Start with the default
+              aiCategory: "Uncategorized",
               indexedAt: new Date(),
             };
 
-            // Step 1: Index the email immediately
+            // Step 3: Index the email.
             await elasticService.indexEmail(emailDocument);
 
-            // --- NEW INTEGRATION LOGIC ---
-            // Step 2: Call the AI to get the category
+            // Step 4: Call the AI to get the category.
             const category = await aiService.categorizeEmail(
               emailDocument.subject,
               emailDocument.body
             );
 
-            // Step 3: Update the document in Elasticsearch with the new category
+            // Step 5: Update the document in Elasticsearch.
             await elasticService.updateEmailCategory(
               emailDocument.id,
               category
             );
-            // --- END OF NEW LOGIC ---
 
+            // Step 6: If the AI finds an interested lead, send notifications.
+            if (category === "Interested") {
+              notificationService
+                .sendInterestNotification(emailDocument)
+                .catch((e) =>
+                  console.error("Error in notification service:", e)
+                );
+            }
+
+            // Step 7: Mark the email as seen.
             if (messageUid) {
               this.imap.addFlags(messageUid, "\\Seen", (flagErr) => {
                 if (flagErr) {
