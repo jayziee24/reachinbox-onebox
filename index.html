@@ -1,13 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ReachInbox Onebox</title>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          Helvetica, Arial, sans-serif;
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, Helvetica, Arial, sans-serif;
         background-color: #f4f7f9;
         color: #333;
         margin: 0;
@@ -130,7 +140,7 @@
 
       // Function to render the list of emails
       function renderEmails(emails) {
-        emailList.innerHTML = ""; // Clear the current list
+        emailList.innerHTML = "";
         if (emails.length === 0) {
           emailList.innerHTML = '<li class="email-item">No emails found.</li>';
           return;
@@ -138,22 +148,22 @@
         emails.forEach((email) => {
           const item = document.createElement("li");
           item.className = "email-item";
-
-          // Sanitize category for CSS class (removes spaces)
           const tagClass = `tag-${email.aiCategory.replace(/\s+/g, "-")}`;
-
           item.innerHTML = `
-          <div class="email-from">${escapeHtml(email.from)}</div>
-          <div class="email-subject">${escapeHtml(email.subject)}</div>
-          <div class="ai-tag ${escapeHtml(tagClass)}">${escapeHtml(
+            <div class="email-from">${escapeHtml(email.from)}</div>
+            <div class="email-subject">${escapeHtml(email.subject)}</div>
+            <div class="ai-tag ${escapeHtml(tagClass)}">${escapeHtml(
             email.aiCategory
           )}</div>
-        `;
+            <button class="suggest-btn" data-id="${escapeHtml(
+              email.id
+            )}">Suggest Reply</button>
+          `;
           emailList.appendChild(item);
         });
       }
 
-      // Function to fetch and display all emails on initial load
+      // --- THIS IS THE MISSING CODE ---
       async function loadInitialEmails() {
         try {
           const response = await fetch("/api/emails");
@@ -166,7 +176,7 @@
         }
       }
 
-      // Function to perform a search
+      // --- THIS IS THE MISSING CODE ---
       async function performSearch() {
         const query = searchInput.value.trim();
         if (!query) {
@@ -184,7 +194,7 @@
         }
       }
 
-      // Helper to prevent HTML injection
+      // --- THIS IS THE MISSING CODE ---
       function escapeHtml(unsafe) {
         return unsafe
           .replace(/&/g, "&amp;")
@@ -194,16 +204,157 @@
           .replace(/'/g, "&#039;");
       }
 
+      async function handleSuggestReply(event) {
+        if (event.target.classList.contains("suggest-btn")) {
+          const emailId = event.target.dataset.id;
+          event.target.textContent = "Thinking...";
+          event.target.disabled = true;
+          try {
+            const response = await fetch(
+              `/api/emails/${encodeURIComponent(emailId)}/suggest-reply`,
+              { method: "POST" }
+            );
+            const data = await response.json();
+            alert(`Suggested Reply:\n\n${data.suggestion}`);
+          } catch (error) {
+            console.error("Failed to get suggestion:", error);
+            alert("Could not generate a suggestion.");
+          } finally {
+            event.target.textContent = "Suggest Reply";
+            event.target.disabled = false;
+          }
+        }
+      }
+
       // Event Listeners
       searchButton.addEventListener("click", performSearch);
       searchInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          performSearch();
-        }
+        if (event.key === "Enter") performSearch();
       });
-
-      // Initial load
+      emailList.addEventListener("click", handleSuggestReply);
       document.addEventListener("DOMContentLoaded", loadInitialEmails);
     </script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background-color: #f4f7f9;
+        color: #333;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+      }
+      header {
+        padding: 20px;
+        border-bottom: 1px solid #e0e0e0;
+        background-color: #fafafa;
+      }
+      h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        padding: 20px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      #search-input {
+        flex-grow: 1;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 16px;
+      }
+      #search-button {
+        padding: 10px 15px;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      #email-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .email-item {
+        display: flex;
+        align-items: center;
+        padding: 15px 20px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      .email-item:last-child {
+        border-bottom: none;
+      }
+      .email-item:hover {
+        background-color: #f0f8ff;
+      }
+      .email-from {
+        font-weight: bold;
+        min-width: 200px;
+      }
+      .email-subject {
+        color: #555;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ai-tag {
+        margin-left: auto;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        color: white;
+        white-space: nowrap;
+      }
+      .tag-Interested {
+        background-color: #28a745;
+      }
+      .tag-Meeting-Booked {
+        background-color: #17a2b8;
+      }
+      .tag-Not-Interested {
+        background-color: #dc3545;
+      }
+      .tag-Spam {
+        background-color: #ffc107;
+        color: #333;
+      }
+      .tag-Out-of-Office {
+        background-color: #6c757d;
+      }
+      .tag-Uncategorized {
+        background-color: #e0e0e0;
+        color: #333;
+      }
+      .suggest-btn {
+        margin-left: 10px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .suggest-btn:hover {
+        background-color: #5a6268;
+      }
+      .suggest-btn:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+    </style>
   </body>
 </html>

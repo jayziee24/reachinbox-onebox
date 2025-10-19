@@ -130,6 +130,27 @@ class ElasticService {
       return [];
     }
   }
+  // In elastic.service.ts, replace the getEmailById function
+
+  // In elastic.service.ts, replace the getEmailById function
+
+  public async getEmailById(id: string): Promise<EmailDocument | null> {
+    try {
+      const response = await this.client.get<EmailDocument>({
+        index: "emails",
+        id,
+      });
+
+      // --- THIS IS THE SLEDGEHAMMER FIX ---
+      // 1. Cast 'response' to 'any' to stop all complaints.
+      // 2. Access the '_source' property.
+      // 3. Cast the result back to 'EmailDocument' to satisfy the return type.
+      return (response as any)._source as EmailDocument;
+    } catch (error) {
+      console.error(`Error fetching email by ID ${id}:`, error);
+      return null;
+    }
+  }
 }
 
 export const elasticService = new ElasticService();

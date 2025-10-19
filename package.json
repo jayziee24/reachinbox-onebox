@@ -24,6 +24,7 @@
     "@elastic/elasticsearch": "^9.1.1",
     "@google-ai/generativelanguage": "^3.5.0",
     "@google/generative-ai": "^0.24.1",
+    "@qdrant/js-client-rest": "^1.15.1",
     "axios": "^1.12.2",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
