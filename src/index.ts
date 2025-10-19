@@ -6,6 +6,7 @@ import { elasticService } from "./services/elastic.service";
 import { imapService } from "./services/imap.service";
 
 const app = express();
+app.use(express.static("."));
 const port = process.env.PORT || 3000;
 
 // Add a temporary debug log to prove the key is loaded
@@ -23,6 +24,18 @@ app.get("/api/emails/search", async (req: Request, res: Response) => {
   const accountId = process.env.IMAP_USER || "";
   const results = await elasticService.searchEmails(searchTerm, accountId);
   res.json(results);
+});
+
+// Endpoint to get a list of all emails for the user
+app.get("/api/emails", async (req: Request, res: Response) => {
+  const accountId = process.env.IMAP_USER || "";
+  const emails = await elasticService.getAllEmails(accountId);
+  res.json(emails);
+});
+
+// Endpoint to list the configured accounts (just one for now)
+app.get("/api/accounts", (req: Request, res: Response) => {
+  res.json([{ id: process.env.IMAP_USER, name: "Main Account" }]);
 });
 
 app.listen(port, async () => {

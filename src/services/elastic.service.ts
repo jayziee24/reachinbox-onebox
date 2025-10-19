@@ -112,6 +112,24 @@ class ElasticService {
       return [];
     }
   }
+  public async getAllEmails(accountId: string) {
+    try {
+      const response = await this.client.search({
+        index: this.indexName,
+        // Sort by date, newest first
+        sort: [{ date: { order: "desc" } }],
+        query: {
+          match: {
+            accountId: accountId,
+          },
+        },
+      });
+      return response.hits.hits.map((hit: any) => hit._source);
+    } catch (error) {
+      console.error("Elasticsearch getAllEmails error:", error);
+      return [];
+    }
+  }
 }
 
 export const elasticService = new ElasticService();

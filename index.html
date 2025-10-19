@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReachInbox Onebox</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background-color: #f4f7f9;
+        color: #333;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+      }
+      header {
+        padding: 20px;
+        border-bottom: 1px solid #e0e0e0;
+        background-color: #fafafa;
+      }
+      h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+      .controls {
+        display: flex;
+        gap: 10px;
+        padding: 20px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      #search-input {
+        flex-grow: 1;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 16px;
+      }
+      #search-button {
+        padding: 10px 15px;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      #email-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .email-item {
+        display: flex;
+        align-items: center;
+        padding: 15px 20px;
+        border-bottom: 1px solid #e0e0e0;
+        transition: background-color 0.2s;
+      }
+      .email-item:last-child {
+        border-bottom: none;
+      }
+      .email-item:hover {
+        background-color: #f0f8ff;
+      }
+      .email-from {
+        font-weight: bold;
+        min-width: 200px;
+      }
+      .email-subject {
+        color: #555;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ai-tag {
+        margin-left: auto;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+        color: white;
+        white-space: nowrap;
+      }
+      .tag-Interested {
+        background-color: #28a745;
+      }
+      .tag-Meeting-Booked {
+        background-color: #17a2b8;
+      }
+      .tag-Not-Interested {
+        background-color: #dc3545;
+      }
+      .tag-Spam {
+        background-color: #ffc107;
+        color: #333;
+      }
+      .tag-Out-of-Office {
+        background-color: #6c757d;
+      }
+      .tag-Uncategorized {
+        background-color: #e0e0e0;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Onebox</h1>
+      </header>
+      <div class="controls">
+        <input type="search" id="search-input" placeholder="Search emails..." />
+        <button id="search-button">Search</button>
+      </div>
+      <ul id="email-list"></ul>
+    </div>
+
+    <script>
+      const emailList = document.getElementById("email-list");
+      const searchInput = document.getElementById("search-input");
+      const searchButton = document.getElementById("search-button");
+
+      // Function to render the list of emails
+      function renderEmails(emails) {
+        emailList.innerHTML = ""; // Clear the current list
+        if (emails.length === 0) {
+          emailList.innerHTML = '<li class="email-item">No emails found.</li>';
+          return;
+        }
+        emails.forEach((email) => {
+          const item = document.createElement("li");
+          item.className = "email-item";
+
+          // Sanitize category for CSS class (removes spaces)
+          const tagClass = `tag-${email.aiCategory.replace(/\s+/g, "-")}`;
+
+          item.innerHTML = `
+          <div class="email-from">${escapeHtml(email.from)}</div>
+          <div class="email-subject">${escapeHtml(email.subject)}</div>
+          <div class="ai-tag ${escapeHtml(tagClass)}">${escapeHtml(
+            email.aiCategory
+          )}</div>
+        `;
+          emailList.appendChild(item);
+        });
+      }
+
+      // Function to fetch and display all emails on initial load
+      async function loadInitialEmails() {
+        try {
+          const response = await fetch("/api/emails");
+          const emails = await response.json();
+          renderEmails(emails);
+        } catch (error) {
+          console.error("Failed to load emails:", error);
+          emailList.innerHTML =
+            '<li class="email-item">Failed to load emails. Is the server running?</li>';
+        }
+      }
+
+      // Function to perform a search
+      async function performSearch() {
+        const query = searchInput.value.trim();
+        if (!query) {
+          loadInitialEmails(); // If search is empty, load all emails
+          return;
+        }
+        try {
+          const response = await fetch(
+            `/api/emails/search?q=${encodeURIComponent(query)}`
+          );
+          const emails = await response.json();
+          renderEmails(emails);
+        } catch (error) {
+          console.error("Search failed:", error);
+        }
+      }
+
+      // Helper to prevent HTML injection
+      function escapeHtml(unsafe) {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // Event Listeners
+      searchButton.addEventListener("click", performSearch);
+      searchInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          performSearch();
+        }
+      });
+
+      // Initial load
+      document.addEventListener("DOMContentLoaded", loadInitialEmails);
+    </script>
+  </body>
+</html>
