@@ -1,6 +1,5 @@
-# ReachInbox Assignment - AI Email Onebox
-
-This is a complete implementation of the **Associate Backend Engineer** assignment for **ReachInbox**.  
+# AI Email Onebox
+ 
 The project is a **real-time, AI-powered email aggregator** that syncs an IMAP account, makes emails searchable, and uses AI for categorization and reply suggestions.
 
 ---
